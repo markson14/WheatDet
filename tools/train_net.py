@@ -134,7 +134,7 @@ def main():
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Training")
     parser.add_argument(
         "--config-file",
-        default="",
+        default="/home/zhangziwei/wheat_det/maskrcnn-benchmark/configs/pascal_voc/e2e_faster_rcnn_R_50_C4_1x_1_gpu_voc.yaml",
         metavar="FILE",
         help="path to config file",
         type=str,

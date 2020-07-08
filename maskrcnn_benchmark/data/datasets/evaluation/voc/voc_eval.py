@@ -7,43 +7,177 @@ from collections import defaultdict
 import numpy as np
 from maskrcnn_benchmark.structures.bounding_box import BoxList
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
+from maskrcnn_benchmark.utils.visualize import vis_image
+from PIL import Image
+
+tag = 1
+
+
+def display_image(pred_bbox_l, gt_boxlist, gt_bbox_l, pred_score_l):
+    impath = gt_boxlist.get_field("ID")
+    img = Image.open(impath)
+    print(impath)
+    pred_bbox_l = pred_bbox_l[pred_score_l > 0.7]
+    pil_image = vis_image(img, pred_bbox_l, mode=2, line_width=3)
+    pil_image = vis_image(pil_image, gt_bbox_l, mode=0, line_width=3)
+    # print("pred box_list:\n", pred_bbox_l.astype(np.float16))
+    # print("pred box_list score:\n", pred_score_l.astype(np.float16))
+    # print("gt box_list:\n", gt_bbox_l)
+    width, height = pil_image.size
+    print(f'image size: ({width}, {height})')
+    if 'Hisence' in impath:
+        newsize = (width // 5, height // 5)
+    else:
+        newsize = (width, height)
+    pil_image.resize(newsize).save('./test_pred.png')
+
+
+def coco_metric(ap, iouThr, result_dic, iou_thresh_list):
+    iStr = ' {:<18} {:<6} @[ IoU={:<9} | area={:>4s}] = {:0.4f}\n'
+    if ap == 0:
+        titleStr = 'IoU'
+        typeStr = '(IoU)'
+    elif ap == 1:
+        titleStr = 'Average Precision'
+        typeStr = '(AP)'
+    elif ap == 2:
+        titleStr = 'Recall'
+        typeStr = '(R)'
+    elif ap == 3:
+        titleStr = 'F1 Score'
+        typeStr = '(F1)'
+    elif ap == 4:
+        titleStr = 'F2 Score'
+        typeStr = '(F2)'
+    elif ap == 5:
+        titleStr = 'Precision'
+        typeStr = '(P)'
+
+    iouStr = '{:0.2f}:{:0.2f}'.format(iou_thresh_list[0], iou_thresh_list[-1]) \
+        if iouThr is None else '{:0.2f}'.format(iouThr)
+
+    if not iouThr:
+        if ap == 1:
+            ap_list = []
+            for i, v in result_dic.items():
+                ap_list.append(v['map'])
+            result = np.mean(ap_list)
+        elif ap == 0:
+            iou_list = []
+            for i, v in result_dic.items():
+                iou_list.append(v['iou'])
+            result = np.mean(iou_list)
+        elif ap == 2:
+            recall_list = []
+            for i, v in result_dic.items():
+                recall_list.append(v['recall'])
+            result = np.nanmean(recall_list)
+        elif ap == 3:
+            f1_list = []
+            for i, v in result_dic.items():
+                f1_list.append(v['f1'])
+            result = np.nanmean(f1_list)
+        elif ap == 4:
+            f2_list = []
+            for i, v in result_dic.items():
+                f2_list.append(v['f2'])
+            result = np.nanmean(f2_list)
+        elif ap == 5:
+            prec_list = []
+            for i, v in result_dic.items():
+                prec_list.append(v['precision'])
+            result = np.nanmean(prec_list)
+    else:
+        if ap == 1:
+            result = result_dic[iouThr]['map']
+        elif ap == 0:
+            result = np.mean(result_dic[iouThr]['iou'])
+        elif ap == 2:
+            result = np.nanmean(result_dic[iouThr]['recall'])
+        elif ap == 3:
+            result = np.nanmean(result_dic[iouThr]['f1'])
+        elif ap == 4:
+            result = np.nanmean(result_dic[iouThr]['f2'])
+        elif ap == 5:
+            result = np.nanmean(result_dic[iouThr]['precision'])
+
+    return iStr.format(titleStr, typeStr, iouStr, 'all', result)
 
 
 def do_voc_evaluation(dataset, predictions, output_folder, logger):
     # TODO need to make the use_07_metric format available
     # for the user to choose
+
+    # AP@IOU defines here!!!!
+    iou_thresh_list = [i / 100 for i in range(50, 100, 5)]
+
     pred_boxlists = []
     gt_boxlists = []
     for image_id, prediction in enumerate(predictions):
         img_info = dataset.get_img_info(image_id)
+        if len(prediction) == 0:
+            continue
         image_width = img_info["width"]
         image_height = img_info["height"]
         prediction = prediction.resize((image_width, image_height))
         pred_boxlists.append(prediction)
-
         gt_boxlist = dataset.get_groundtruth(image_id)
         gt_boxlists.append(gt_boxlist)
-    result = eval_detection_voc(
-        pred_boxlists=pred_boxlists,
-        gt_boxlists=gt_boxlists,
-        iou_thresh=0.5,
-        use_07_metric=True,
-    )
-    result_str = "mAP: {:.4f}\n".format(result["map"])
-    for i, ap in enumerate(result["ap"]):
-        if i == 0:  # skip background
-            continue
-        result_str += "{:<16}: {:.4f}\n".format(
-            dataset.map_class_id_to_class_name(i), ap
+
+    result_list = []
+    result_dic = {}
+    result_str = ""
+    mAP = []
+    mmIoU = []
+
+    global tag
+    tag = 1
+
+    for iou_thresh in iou_thresh_list:
+        result = eval_detection_voc(
+            pred_boxlists=pred_boxlists,
+            gt_boxlists=gt_boxlists,
+            iou_thresh=iou_thresh,
+            use_07_metric=True,
         )
-    logger.info(result_str)
+        # mAP.append(result["map"])
+        # mmIoU.append(np.mean(result["iou"]))
+        # if iou_thresh == 0.5 or iou_thresh == 0.75:
+        #     result_str += "\nAverage Precision@{}: {:.4f}\n".format(iou_thresh, result["map"])
+        #     result_str += "mIoU: {:.4f}\n".format(np.mean(result["iou"]))
+        #     for i, ap in enumerate(result["ap"]):
+        #         if i == 0:  # skip background
+        #             continue
+        #         result_str += "{}: {:.4f}\n".format(
+        #             dataset.map_class_id_to_class_name(i), ap
+        #         )
+        # result_list.append(result)
+        result_dic[iou_thresh] = result
+    # result_str += "\nmAP: {:.4f}\n".format(np.mean(mAP))
+    # result_str += "mAIoU: {:.4f}\n".format(np.mean(mmIoU))
+
+    result_str += coco_metric(1, 0.5, result_dic, iou_thresh_list)
+    result_str += coco_metric(1, 0.75, result_dic, iou_thresh_list)
+    result_str += coco_metric(1, None, result_dic, iou_thresh_list)
+    result_str += "\n"
+    result_str += coco_metric(0, None, result_dic, iou_thresh_list)
+    result_str += coco_metric(2, None, result_dic, iou_thresh_list)
+    result_str += coco_metric(5, None, result_dic, iou_thresh_list)
+    result_str += coco_metric(3, None, result_dic, iou_thresh_list)
+    result_str += coco_metric(4, None, result_dic, iou_thresh_list)
+
+    logger.info('\n' + result_str)
     if output_folder:
         with open(os.path.join(output_folder, "result.txt"), "w") as fid:
             fid.write(result_str)
-    return result
+    # return result_list
 
 
-def eval_detection_voc(pred_boxlists, gt_boxlists, iou_thresh=0.5, use_07_metric=False):
+def f_score(recall, precision, beta=1):
+    return (1+beta**2) * recall * precision / (beta**2 * precision + recall)
+
+
+def eval_detection_voc(pred_boxlists, gt_boxlists, iou_thresh=0.75, use_07_metric=False):
     """Evaluate on voc dataset.
     Args:
         pred_boxlists(list[BoxList]): pred boxlist, has labels and scores fields.
@@ -56,11 +190,13 @@ def eval_detection_voc(pred_boxlists, gt_boxlists, iou_thresh=0.5, use_07_metric
     assert len(gt_boxlists) == len(
         pred_boxlists
     ), "Length of gt and pred lists need to be same."
-    prec, rec = calc_detection_voc_prec_rec(
+    prec, rec, res_iou, r, p, f1, f2 = calc_detection_voc_prec_rec(
         pred_boxlists=pred_boxlists, gt_boxlists=gt_boxlists, iou_thresh=iou_thresh
     )
     ap = calc_detection_voc_ap(prec, rec, use_07_metric=use_07_metric)
-    return {"ap": ap, "map": np.nanmean(ap)}
+    return {"ap": ap, "map": np.nanmean(ap),
+            "iou": res_iou, "recall": r, "precision": p,
+            "f1": f1, "f2": f2}
 
 
 def calc_detection_voc_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.5):
@@ -73,6 +209,7 @@ def calc_detection_voc_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.5):
     n_pos = defaultdict(int)
     score = defaultdict(list)
     match = defaultdict(list)
+    res_iou = list()
     for gt_boxlist, pred_boxlist in zip(gt_boxlists, pred_boxlists):
         pred_bbox = pred_boxlist.bbox.numpy()
         pred_label = pred_boxlist.get_field("labels").numpy()
@@ -112,6 +249,16 @@ def calc_detection_voc_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.5):
                 BoxList(pred_bbox_l, gt_boxlist.size),
                 BoxList(gt_bbox_l, gt_boxlist.size),
             ).numpy()
+            f_iou = iou.max(axis=0)
+            res_iou.extend(f_iou)
+            
+            # display intermediate result
+            global tag
+            if tag == 1:
+                # display_image(pred_bbox_l, gt_boxlist, gt_bbox_l, pred_score_l)
+                tag = 0
+                print("Done save intermediate result")
+                
             gt_index = iou.argmax(axis=1)
             # set -1 if there is no matching ground truth
             gt_index[iou.max(axis=1) < iou_thresh] = -1
@@ -135,6 +282,11 @@ def calc_detection_voc_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.5):
     prec = [None] * n_fg_class
     rec = [None] * n_fg_class
 
+    p = [np.nan] * n_fg_class
+    r = [np.nan] * n_fg_class
+    f1 = [np.nan] * n_fg_class
+    f2 = [np.nan] * n_fg_class
+
     for l in n_pos.keys():
         score_l = np.array(score[l])
         match_l = np.array(match[l], dtype=np.int8)
@@ -152,7 +304,17 @@ def calc_detection_voc_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.5):
         if n_pos[l] > 0:
             rec[l] = tp / n_pos[l]
 
-    return prec, rec
+        # Overall true positive and false positive
+        tp_i = np.sum(match_l == 1)
+        fp_i = np.sum(match_l == 0)
+
+        r[l] = tp_i / n_pos[l]
+        p[l] = tp_i / (fp_i + tp_i)
+
+        f1[l] = f_score(r[l], p[l], 1)
+        f2[l] = f_score(r[l], p[l], 2)
+
+    return prec, rec, res_iou, r, p, f1, f2
 
 
 def calc_detection_voc_ap(prec, rec, use_07_metric=False):

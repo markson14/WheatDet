@@ -23,14 +23,17 @@ MODEL:
     STRIDE_IN_1X1: False
     NUM_GROUPS: 32
     WIDTH_PER_GROUP: 8
+    STEM_FUNC: "StemWithGN"
 DATASETS:
-  TRAIN: ("coco_2014_train", "coco_2014_valminusminival")
-  TEST: ("coco_2014_minival",)
+  TRAIN: ("wheat_dataset_train", "wheat_dataset_val")
+  TEST: ("wheat_dataset_val",)
 DATALOADER:
   SIZE_DIVISIBILITY: 32
 SOLVER:
-  BASE_LR: 0.01
+  BASE_LR: 0.001
   WEIGHT_DECAY: 0.0001
-  STEPS: (120000, 160000)
-  MAX_ITER: 180000
-  IMS_PER_BATCH: 8
+  STEPS: (20000, )
+  MAX_ITER: 40000
+  IMS_PER_BATCH: 4
+  CHECKPOINT_PERIOD: 5000
+  TEST_PERIOD: 1000

@@ -20,7 +20,7 @@ def evaluate(dataset, predictions, output_folder, **kwargs):
     )
     if isinstance(dataset, datasets.COCODataset):
         return coco_evaluation(**args)
-    elif isinstance(dataset, datasets.PascalVOCDataset):
+    elif isinstance(dataset, datasets.PascalVOCDataset) or isinstance(dataset, datasets.WheatDataset):
         return voc_evaluation(**args)
     elif isinstance(dataset, datasets.AbstractDataset):
         return abs_cityscapes_evaluation(**args)

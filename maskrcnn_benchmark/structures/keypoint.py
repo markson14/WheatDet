@@ -13,7 +13,7 @@ class Keypoints(object):
         keypoints = torch.as_tensor(keypoints, dtype=torch.float32, device=device)
         num_keypoints = keypoints.shape[0]
         if num_keypoints:
-            keypoints = keypoints.view(num_keypoints, -1, 3)
+            keypoints = keypoints.view(num_keypoints, -1, 3) # [x,y,?]
         
         # TODO should I split them?
         # self.visibility = keypoints[..., 2]
@@ -125,29 +125,47 @@ class PersonKeypoints(Keypoints):
         'left_ankle': 'right_ankle'
     }
 
+class RefrigeratorKeypoints(Keypoints):
+    NAMES = [
+        'center',
+        'edge'
+    ]
+    FLIP_MAP = {
+        'center': 'center',
+        'edge': 'edge'
+    }
+
 
 # TODO this doesn't look great
-PersonKeypoints.FLIP_INDS = _create_flip_indices(PersonKeypoints.NAMES, PersonKeypoints.FLIP_MAP)
+# PersonKeypoints.FLIP_INDS = _create_flip_indices(PersonKeypoints.NAMES, PersonKeypoints.FLIP_MAP)
+# def kp_connections(keypoints):
+#     kp_lines = [
+#         [keypoints.index('left_eye'), keypoints.index('right_eye')],
+#         [keypoints.index('left_eye'), keypoints.index('nose')],
+#         [keypoints.index('right_eye'), keypoints.index('nose')],
+#         [keypoints.index('right_eye'), keypoints.index('right_ear')],
+#         [keypoints.index('left_eye'), keypoints.index('left_ear')],
+#         [keypoints.index('right_shoulder'), keypoints.index('right_elbow')],
+#         [keypoints.index('right_elbow'), keypoints.index('right_wrist')],
+#         [keypoints.index('left_shoulder'), keypoints.index('left_elbow')],
+#         [keypoints.index('left_elbow'), keypoints.index('left_wrist')],
+#         [keypoints.index('right_hip'), keypoints.index('right_knee')],
+#         [keypoints.index('right_knee'), keypoints.index('right_ankle')],
+#         [keypoints.index('left_hip'), keypoints.index('left_knee')],
+#         [keypoints.index('left_knee'), keypoints.index('left_ankle')],
+#         [keypoints.index('right_shoulder'), keypoints.index('left_shoulder')],
+#         [keypoints.index('right_hip'), keypoints.index('left_hip')],
+#     ]
+#     return kp_lines
+RefrigeratorKeypoints.FLIP_INDS = _create_flip_indices(RefrigeratorKeypoints.NAMES, RefrigeratorKeypoints.FLIP_MAP)
 def kp_connections(keypoints):
     kp_lines = [
-        [keypoints.index('left_eye'), keypoints.index('right_eye')],
-        [keypoints.index('left_eye'), keypoints.index('nose')],
-        [keypoints.index('right_eye'), keypoints.index('nose')],
-        [keypoints.index('right_eye'), keypoints.index('right_ear')],
-        [keypoints.index('left_eye'), keypoints.index('left_ear')],
-        [keypoints.index('right_shoulder'), keypoints.index('right_elbow')],
-        [keypoints.index('right_elbow'), keypoints.index('right_wrist')],
-        [keypoints.index('left_shoulder'), keypoints.index('left_elbow')],
-        [keypoints.index('left_elbow'), keypoints.index('left_wrist')],
-        [keypoints.index('right_hip'), keypoints.index('right_knee')],
-        [keypoints.index('right_knee'), keypoints.index('right_ankle')],
-        [keypoints.index('left_hip'), keypoints.index('left_knee')],
-        [keypoints.index('left_knee'), keypoints.index('left_ankle')],
-        [keypoints.index('right_shoulder'), keypoints.index('left_shoulder')],
-        [keypoints.index('right_hip'), keypoints.index('left_hip')],
+        [keypoints.index('edge'), keypoints.index('edge')],
+        [keypoints.index('center'), keypoints.index('center')],
     ]
     return kp_lines
-PersonKeypoints.CONNECTIONS = kp_connections(PersonKeypoints.NAMES)
+# PersonKeypoints.CONNECTIONS = kp_connections(PersonKeypoints.NAMES)
+RefrigeratorKeypoints.CONNECTIONS = kp_connections(RefrigeratorKeypoints.NAMES)
 
 
 # TODO make this nicer, this is a direct translation from C2 (but removing the inner loop)

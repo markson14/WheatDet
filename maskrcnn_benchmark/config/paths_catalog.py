@@ -147,6 +147,14 @@ class DatasetCatalog(object):
             "mode": "mask",
             "mini": 10,
         },
+        "wheat_dataset_train": {
+            "data_dir": "/home/zhangziwei/wheat_det/",
+            "split": "train"
+        },
+        "wheat_dataset_val": {
+            "data_dir": "/home/zhangziwei/wheat_det/",
+            "split": "val"
+        },
     }
 
     @staticmethod
@@ -171,6 +179,17 @@ class DatasetCatalog(object):
             )
             return dict(
                 factory="PascalVOCDataset",
+                args=args,
+            )
+        elif "wheat" in name:
+            data_dir = DatasetCatalog.DATA_DIR
+            attrs = DatasetCatalog.DATASETS[name]
+            args = dict(
+                data_dir=os.path.join(data_dir, attrs["data_dir"]),
+                split=attrs["split"],
+            )
+            return dict(
+                factory="WheatDataset",
                 args=args,
             )
         elif "cityscapes" in name:

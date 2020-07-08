@@ -1,4 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+import numpy as np
+from maskrcnn_benchmark.structures.keypoint import PersonKeypoints
+import matplotlib.pyplot as plt
 import cv2
 import torch
 from torchvision import transforms as T
@@ -9,6 +12,7 @@ from maskrcnn_benchmark.structures.image_list import to_image_list
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark import layers as L
 from maskrcnn_benchmark.utils import cv2_util
+
 
 class Resize(object):
     def __init__(self, min_size, max_size):
@@ -42,90 +46,13 @@ class Resize(object):
         size = self.get_size(image.size)
         image = F.resize(image, size)
         return image
+
+
 class COCODemo(object):
     # COCO categories for pretty print
     CATEGORIES = [
         "__background",
-        "person",
-        "bicycle",
-        "car",
-        "motorcycle",
-        "airplane",
-        "bus",
-        "train",
-        "truck",
-        "boat",
-        "traffic light",
-        "fire hydrant",
-        "stop sign",
-        "parking meter",
-        "bench",
-        "bird",
-        "cat",
-        "dog",
-        "horse",
-        "sheep",
-        "cow",
-        "elephant",
-        "bear",
-        "zebra",
-        "giraffe",
-        "backpack",
-        "umbrella",
-        "handbag",
-        "tie",
-        "suitcase",
-        "frisbee",
-        "skis",
-        "snowboard",
-        "sports ball",
-        "kite",
-        "baseball bat",
-        "baseball glove",
-        "skateboard",
-        "surfboard",
-        "tennis racket",
-        "bottle",
-        "wine glass",
-        "cup",
-        "fork",
-        "knife",
-        "spoon",
-        "bowl",
-        "banana",
-        "apple",
-        "sandwich",
-        "orange",
-        "broccoli",
-        "carrot",
-        "hot dog",
-        "pizza",
-        "donut",
-        "cake",
-        "chair",
-        "couch",
-        "potted plant",
-        "bed",
-        "dining table",
-        "toilet",
-        "tv",
-        "laptop",
-        "mouse",
-        "remote",
-        "keyboard",
-        "cell phone",
-        "microwave",
-        "oven",
-        "toaster",
-        "sink",
-        "refrigerator",
-        "book",
-        "clock",
-        "vase",
-        "scissors",
-        "teddy bear",
-        "hair drier",
-        "toothbrush",
+        "wheat",
     ]
 
     def __init__(
@@ -135,7 +62,7 @@ class COCODemo(object):
         show_mask_heatmaps=False,
         masks_per_dim=2,
         min_image_size=224,
-        weight_loading = None
+        weight_loading=None
     ):
         self.cfg = cfg.clone()
         self.model = build_detection_model(cfg)
@@ -147,11 +74,11 @@ class COCODemo(object):
         save_dir = cfg.OUTPUT_DIR
         checkpointer = DetectronCheckpointer(cfg, self.model, save_dir=save_dir)
         _ = checkpointer.load(cfg.MODEL.WEIGHT)
-        
+
         if weight_loading:
             print('Loading weight from {}.'.format(weight_loading))
             _ = checkpointer._load_model(torch.load(weight_loading))
-        
+
         self.transforms = self.build_transform()
 
         mask_threshold = -1 if show_mask_heatmaps else 0.5
@@ -207,7 +134,7 @@ class COCODemo(object):
                 the BoxList via `prediction.fields()`
         """
         predictions = self.compute_prediction(image)
-        top_predictions = self.select_top_predictions(predictions)
+        top_predictions, scores = self.select_top_predictions(predictions)
 
         result = image.copy()
         if self.show_mask_heatmaps:
@@ -219,7 +146,7 @@ class COCODemo(object):
             result = self.overlay_keypoints(result, top_predictions)
         result = self.overlay_class_names(result, top_predictions)
 
-        return result
+        return result, top_predictions, scores
 
     def compute_prediction(self, original_image):
         """
@@ -276,8 +203,9 @@ class COCODemo(object):
         keep = torch.nonzero(scores > self.confidence_threshold).squeeze(1)
         predictions = predictions[keep]
         scores = predictions.get_field("scores")
-        _, idx = scores.sort(0, descending=True)
-        return predictions[idx]
+        score, idx = scores.sort(0, descending=True)
+
+        return predictions[idx], score
 
     def compute_colors_for_labels(self, labels):
         """
@@ -406,9 +334,6 @@ class COCODemo(object):
 
         return image
 
-import numpy as np
-import matplotlib.pyplot as plt
-from maskrcnn_benchmark.structures.keypoint import PersonKeypoints
 
 def vis_keypoints(img, kps, kp_thresh=2, alpha=0.7):
     """Visualizes keypoints (adapted from vis_one_image).
@@ -427,14 +352,14 @@ def vis_keypoints(img, kps, kp_thresh=2, alpha=0.7):
 
     # Draw mid shoulder / mid hip first for better visualization.
     mid_shoulder = (
-        kps[:2, dataset_keypoints.index('right_shoulder')] +
-        kps[:2, dataset_keypoints.index('left_shoulder')]) / 2.0
+        kps[:2, dataset_keypoints.index('right_shoulder')]
+        + kps[:2, dataset_keypoints.index('left_shoulder')]) / 2.0
     sc_mid_shoulder = np.minimum(
         kps[2, dataset_keypoints.index('right_shoulder')],
         kps[2, dataset_keypoints.index('left_shoulder')])
     mid_hip = (
-        kps[:2, dataset_keypoints.index('right_hip')] +
-        kps[:2, dataset_keypoints.index('left_hip')]) / 2.0
+        kps[:2, dataset_keypoints.index('right_hip')]
+        + kps[:2, dataset_keypoints.index('left_hip')]) / 2.0
     sc_mid_hip = np.minimum(
         kps[2, dataset_keypoints.index('right_hip')],
         kps[2, dataset_keypoints.index('left_hip')])
